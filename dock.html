@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OBS Dock Starter — Controller</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="dock-page">
+  <main class="dock-shell">
+    <header class="dock-header">
+      <div class="dock-brand">
+        <span class="dock-brand-title">OBS Dock Starter</span>
+        <span class="sync-meta" id="syncMeta" aria-live="polite">
+          <span class="sync-dot" aria-hidden="true"></span>
+          <span id="syncText">Ready</span>
+        </span>
+      </div>
+      <button type="button" class="btn toggle-btn" id="toggleVisibleBtn" aria-pressed="true">
+        Overlay: ON
+      </button>
+    </header>
+
+    <section class="dock-section" aria-label="Status presets">
+      <div class="section-head">
+        <span>Presets</span>
+        <span id="activeMoodText">active</span>
+      </div>
+      <div class="preset-grid" id="presetGrid"></div>
+    </section>
+
+    <section class="dock-section" aria-label="Overlay text">
+      <div class="section-head">
+        <span>Display Copy</span>
+        <span>Instant sync</span>
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="titleInput">Main Title</label>
+        <input id="titleInput" class="text-input" type="text" maxlength="120" autocomplete="off" />
+      </div>
+      <div class="field-group">
+        <label class="field-label" for="subtitleInput">Subtitle</label>
+        <input id="subtitleInput" class="text-input" type="text" maxlength="160" autocomplete="off" />
+      </div>
+      <div class="field-row">
+        <div class="field-group">
+          <label class="field-label" for="statusInput">Status Label</label>
+          <input id="statusInput" class="text-input" type="text" maxlength="48" autocomplete="off" />
+        </div>
+        <div class="field-group">
+          <label class="field-label" for="countLabelInput">Counter Label</label>
+          <input id="countLabelInput" class="text-input" type="text" maxlength="32" autocomplete="off" />
+        </div>
+      </div>
+    </section>
+
+    <section class="dock-section" aria-label="Counter controls">
+      <div class="section-head">
+        <span>Counter &amp; Goal</span>
+        <label class="field-label" for="goalInput">Goal (0 hides bar)</label>
+      </div>
+      <div class="counter-bar">
+        <div class="counter-readout" id="counterReadout">0 <span>/ 10</span></div>
+        <input id="goalInput" class="text-input" type="number" min="0" max="99999" style="width: 96px;" />
+      </div>
+      <div class="counter-actions">
+        <button type="button" class="btn" id="decBtn">-1</button>
+        <button type="button" class="btn btn-primary" id="inc1Btn">+1</button>
+        <button type="button" class="btn" id="inc5Btn">+5</button>
+        <button type="button" class="btn" id="zeroBtn">0</button>
+      </div>
+    </section>
+
+    <section class="dock-section" aria-label="Live preview">
+      <div class="section-head">
+        <span>Live State Preview</span>
+        <span id="previewChannel">localStorage</span>
+      </div>
+      <div class="preview-strip">
+        <div class="preview-top">
+          <span id="previewStatus">LIVE · FOCUS</span>
+          <span id="previewCount">Tasks 0 / 10</span>
+        </div>
+        <div class="preview-title" id="previewTitle">Today: OBS Dock Starter</div>
+      </div>
+    </section>
+
+    <footer class="dock-footer">
+      <button type="button" class="btn btn-danger" id="resetAllBtn">Reset Defaults</button>
+      <span class="sync-meta" id="schemaMeta">v1</span>
+    </footer>
+  </main>
+
+  <script src="./shared.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const api = window.ObsDockStarter;
+      const presetGrid = document.getElementById('presetGrid');
+      const syncText = document.getElementById('syncText');
+      const activeMoodText = document.getElementById('activeMoodText');
+      const toggleVisibleBtn = document.getElementById('toggleVisibleBtn');
+      const titleInput = document.getElementById('titleInput');
+      const subtitleInput = document.getElementById('subtitleInput');
+      const statusInput = document.getElementById('statusInput');
+      const countLabelInput = document.getElementById('countLabelInput');
+      const goalInput = document.getElementById('goalInput');
+      const counterReadout = document.getElementById('counterReadout');
+      const previewStatus = document.getElementById('previewStatus');
+      const previewCount = document.getElementById('previewCount');
+      const previewTitle = document.getElementById('previewTitle');
+      const schemaMeta = document.getElementById('schemaMeta');
+
+      let currentState = api.loadState();
+
+      // Build preset buttons once
+      const presetButtons = new Map();
+      api.PRESETS.forEach(function (preset) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.className = 'btn btn-preset';
+        btn.dataset.presetId = preset.id;
+        btn.setAttribute('aria-pressed', 'false');
+
+        const dot = document.createElement('span');
+        dot.className = 'mood-dot';
+        dot.dataset.mood = preset.mood;
+        dot.setAttribute('aria-hidden', 'true');
+
+        const label = document.createElement('span');
+        label.textContent = preset.label;
+
+        btn.appendChild(dot);
+        btn.appendChild(label);
+        btn.addEventListener('click', function () {
+          api.saveState({
+            presetId: preset.id,
+            status: preset.badge,
+            mood: preset.mood,
+            subtitle: preset.subtitle
+          });
+        });
+
+        presetGrid.appendChild(btn);
+        presetButtons.set(preset.id, btn);
+      });
+
+      function syncInputValue(inputEl, nextValue) {
+        if (document.activeElement !== inputEl && inputEl.value !== nextValue) {
+          inputEl.value = nextValue;
+        }
+      }
+
+      function render(state, source) {
+        currentState = state;
+
+        syncText.textContent = 'Synced #' + state.seq + ' · ' + api.formatClock(state.updatedAt);
+        activeMoodText.textContent = state.mood;
+        schemaMeta.textContent = 'schema v' + state.v + ' (' + source + ')';
+
+        toggleVisibleBtn.setAttribute('aria-pressed', String(state.visible));
+        toggleVisibleBtn.textContent = state.visible ? 'Overlay: ON' : 'Overlay: HIDDEN';
+
+        syncInputValue(titleInput, state.title);
+        syncInputValue(subtitleInput, state.subtitle);
+        syncInputValue(statusInput, state.status);
+        syncInputValue(countLabelInput, state.countLabel);
+        syncInputValue(goalInput, String(state.goal));
+
+        counterReadout.innerHTML = '';
+        counterReadout.appendChild(document.createTextNode(String(state.count) + ' '));
+        const goalSpan = document.createElement('span');
+        goalSpan.textContent = state.goal > 0 ? '/ ' + state.goal : '(no goal)';
+        counterReadout.appendChild(goalSpan);
+
+        previewStatus.textContent = state.visible ? state.status : '[HIDDEN] ' + state.status;
+        previewCount.textContent = (state.countLabel ? state.countLabel + ' ' : '') +
+          state.count + (state.goal > 0 ? ' / ' + state.goal : '');
+        previewTitle.textContent = state.title || '(empty title)';
+
+        presetButtons.forEach(function (btn, id) {
+          btn.setAttribute('aria-pressed', String(state.presetId === id));
+        });
+      }
+
+      toggleVisibleBtn.addEventListener('click', function () {
+        api.saveState({ visible: !currentState.visible });
+      });
+
+      titleInput.addEventListener('input', function () {
+        api.saveState({ title: titleInput.value });
+      });
+
+      subtitleInput.addEventListener('input', function () {
+        api.saveState({ subtitle: subtitleInput.value });
+      });
+
+      statusInput.addEventListener('input', function () {
+        api.saveState({ status: statusInput.value, presetId: '' });
+      });
+
+      countLabelInput.addEventListener('input', function () {
+        api.saveState({ countLabel: countLabelInput.value });
+      });
+
+      goalInput.addEventListener('input', function () {
+        const parsed = parseInt(goalInput.value, 10);
+        api.saveState({ goal: Number.isFinite(parsed) && parsed >= 0 ? parsed : 0 });
+      });
+
+      document.getElementById('decBtn').addEventListener('click', function () {
+        api.saveState({ count: Math.max(0, currentState.count - 1) });
+      });
+
+      document.getElementById('inc1Btn').addEventListener('click', function () {
+        api.saveState({ count: currentState.count + 1 });
+      });
+
+      document.getElementById('inc5Btn').addEventListener('click', function () {
+        api.saveState({ count: currentState.count + 5 });
+      });
+
+      document.getElementById('zeroBtn').addEventListener('click', function () {
+        api.saveState({ count: 0 });
+      });
+
+      document.getElementById('resetAllBtn').addEventListener('click', function () {
+        api.resetState();
+      });
+
+      api.subscribe(render);
+    })();
+  </script>
+</body>
+</html>

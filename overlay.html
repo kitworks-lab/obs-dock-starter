@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en" class="overlay-root">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=1920, height=1080, initial-scale=1.0" />
+  <title>OBS Dock Starter — Overlay</title>
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body class="overlay-page" data-theme="dark">
+  <div class="overlay-canvas" id="overlayCanvas" data-pos="bottom-left">
+    <section class="overlay-card" id="overlayCard" data-mood="active" aria-live="polite">
+      <div class="overlay-meta">
+        <span class="overlay-status">
+          <span class="mood-dot" id="overlayMoodDot" data-mood="active" aria-hidden="true"></span>
+          <span id="overlayStatus">LIVE · FOCUS</span>
+        </span>
+        <span class="overlay-count-tag" id="overlayCount">Tasks 0 / 10</span>
+      </div>
+      <h1 class="overlay-title" id="overlayTitle">Today: OBS Dock Starter</h1>
+      <p class="overlay-subtitle" id="overlaySubtitle">Building &amp; shipping on stream</p>
+      <div class="overlay-progress" id="overlayProgress" role="progressbar" aria-valuemin="0" aria-valuemax="10" aria-valuenow="0">
+        <div class="overlay-progress-fill" id="overlayProgressFill"></div>
+      </div>
+    </section>
+  </div>
+
+  <script src="./shared.js"></script>
+  <script>
+    (function () {
+      'use strict';
+
+      const api = window.ObsDockStarter;
+      const params = new URLSearchParams(window.location.search);
+
+      // Optional URL query overrides: ?pos=top-right&theme=paper&scale=1.15
+      const allowedPos = new Set(['bottom-left', 'bottom-right', 'top-left', 'top-right']);
+      const pos = params.get('pos');
+      const canvas = document.getElementById('overlayCanvas');
+      if (pos && allowedPos.has(pos)) {
+        canvas.dataset.pos = pos;
+      }
+
+      const theme = params.get('theme');
+      if (theme === 'paper' || theme === 'dark') {
+        document.body.dataset.theme = theme;
+      }
+
+      const card = document.getElementById('overlayCard');
+      const scaleRaw = parseFloat(params.get('scale'));
+      if (Number.isFinite(scaleRaw) && scaleRaw >= 0.5 && scaleRaw <= 2.5) {
+        const originY = canvas.dataset.pos.startsWith('top') ? 'top' : 'bottom';
+        const originX = canvas.dataset.pos.endsWith('right') ? 'right' : 'left';
+        card.style.transformOrigin = originY + ' ' + originX;
+        card.style.zoom = String(scaleRaw);
+      }
+
+      const moodDot = document.getElementById('overlayMoodDot');
+      const statusEl = document.getElementById('overlayStatus');
+      const countEl = document.getElementById('overlayCount');
+      const titleEl = document.getElementById('overlayTitle');
+      const subtitleEl = document.getElementById('overlaySubtitle');
+      const progressEl = document.getElementById('overlayProgress');
+      const progressFill = document.getElementById('overlayProgressFill');
+
+      function render(state) {
+        card.classList.toggle('is-hidden', !state.visible);
+        card.dataset.mood = state.mood;
+        moodDot.dataset.mood = state.mood;
+
+        statusEl.textContent = state.status || '';
+        titleEl.textContent = state.title || '';
+        subtitleEl.textContent = state.subtitle || '';
+        subtitleEl.style.display = state.subtitle ? '' : 'none';
+
+        const labelPrefix = state.countLabel ? state.countLabel + ' ' : '';
+        if (state.goal > 0) {
+          countEl.textContent = labelPrefix + state.count + ' / ' + state.goal;
+          const pct = Math.min(100, Math.round((state.count / state.goal) * 100));
+          progressEl.classList.remove('is-hidden');
+          progressEl.setAttribute('aria-valuemax', String(state.goal));
+          progressEl.setAttribute('aria-valuenow', String(state.count));
+          progressFill.style.width = pct + '%';
+        } else {
+          countEl.textContent = labelPrefix + state.count;
+          progressEl.classList.add('is-hidden');
+        }
+      }
+
+      api.subscribe(render);
+    })();
+  </script>
+</body>
+</html>
